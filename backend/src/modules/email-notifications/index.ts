@@ -1,7 +1,8 @@
 import { ModuleProviderExports } from '@medusajs/framework/types'
 import { ResendNotificationService } from './services/resend'
+import { BrevoNotificationService } from './services/brevo'
 
-const services = [ResendNotificationService]
+const services = [ResendNotificationService, BrevoNotificationService]
 
 const providerExport: ModuleProviderExports = {
   services,

@@ -73,6 +73,12 @@ export const RESEND_API_KEY = process.env.RESEND_API_KEY;
 export const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
 
 /**
+ * (optional) Brevo API Key and from Email
+ */
+export const BREVO_API_KEY = process.env.BREVO_API_KEY;
+export const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || process.env.BREVO_FROM;
+
+/**
  * (optionl) SendGrid API Key and from Email - do not set if using Resend
  */
 export const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;

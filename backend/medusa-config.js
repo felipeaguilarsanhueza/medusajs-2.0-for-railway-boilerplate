@@ -23,7 +23,9 @@ import {
   MEILISEARCH_HOST,
   MEILISEARCH_ADMIN_KEY,
   MERCADOPAGO_ACCESS_TOKEN,
-  MERCADOPAGO_WEBHOOK_SECRET
+  MERCADOPAGO_WEBHOOK_SECRET,
+  BREVO_API_KEY,
+  BREVO_FROM_EMAIL
 } from 'lib/constants';
 
 loadEnv(process.env.NODE_ENV, process.cwd());
@@ -93,7 +95,7 @@ const medusaConfig = {
         }
       }
     }] : []),
-    ...(SENDGRID_API_KEY && SENDGRID_FROM_EMAIL || RESEND_API_KEY && RESEND_FROM_EMAIL ? [{
+    ...(SENDGRID_API_KEY && SENDGRID_FROM_EMAIL || RESEND_API_KEY && RESEND_FROM_EMAIL || BREVO_API_KEY && BREVO_FROM_EMAIL ? [{
       key: Modules.NOTIFICATION,
       resolve: '@medusajs/notification',
       options: {
@@ -114,6 +116,15 @@ const medusaConfig = {
               channels: ['email'],
               api_key: RESEND_API_KEY,
               from: RESEND_FROM_EMAIL,
+            },
+          }] : []),
+          ...(BREVO_API_KEY && BREVO_FROM_EMAIL ? [{
+            resolve: './src/modules/email-notifications',
+            id: 'brevo',
+            options: {
+              channels: ['email'],
+              api_key: BREVO_API_KEY,
+              from: BREVO_FROM_EMAIL,
             },
           }] : []),
         ]
