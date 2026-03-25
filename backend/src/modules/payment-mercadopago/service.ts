@@ -1,13 +1,4 @@
-import {
-  AbstractPaymentProvider,
-  PaymentProviderError,
-  PaymentProviderSessionResponse,
-  CreatePaymentProviderSession,
-  UpdatePaymentProviderSession,
-  ProviderWebhookPayload,
-  WebhookActionResult,
-  PaymentSessionStatus,
-} from "@medusajs/framework/utils"
+import { AbstractPaymentProvider } from "@medusajs/framework/utils"
 // @ts-ignore
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 
@@ -33,19 +24,14 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
     this.paymentClient = new Payment(this.mpConfig);
   }
 
-  async initiatePayment(
-    input: CreatePaymentProviderSession
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async initiatePayment(input: any): Promise<any> {
     try {
-      // In a headless flow, you might return the transaction data 
-      // needed by the frontend, such as the total amount.
-      // MercadoPago checkout Pro uses preferences. Here we prepare a transparent checkout session.
+      const { amount, currency_code, context } = input;
       return {
-        ...input,
         data: {
-          id: `${input.context.resource_id}_${Date.now()}`,
-          amount: input.amount,
-          currency: input.currency_code,
+          id: `${context?.resource_id}_${Date.now()}`,
+          amount,
+          currency: currency_code,
           status: 'pending',
         }
       }
@@ -54,27 +40,20 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
     }
   }
 
-  async authorizePayment(
-    paymentSessionData: Record<string, unknown>,
-    context: Record<string, unknown>
-  ): Promise<PaymentProviderError | {
-    data: PaymentProviderSessionResponse["data"]
-    status: PaymentSessionStatus
-  }> {
+  async authorizePayment(input: any): Promise<any> {
     try {
-      const { amount, currency_code } = context as any;
-      const { token, payment_method_id, issuer_id, installments, payer } = paymentSessionData as any;
+      const { amount, context } = input;
+      const paymentDataSession = input.data || {};
+      const { token, payment_method_id, issuer_id, installments, payer } = paymentDataSession as any;
 
-      // If missing basic MP fields, we might just be initializing or authorizing via another method.
-      // Mercado Pago creates payments immediately in most cases.
       if (!token && !payment_method_id) {
          return {
-           data: paymentSessionData,
-           status: "pending" as PaymentSessionStatus
+           data: paymentDataSession,
+           status: "pending"
          }
       }
 
-      const paymentData = {
+      const paymentDataParams = {
         transaction_amount: Number(amount),
         description: `Medusa Order`,
         payment_method_id: payment_method_id,
@@ -86,13 +65,12 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
         },
       };
 
-      const payment = await this.paymentClient.create({ body: paymentData });
-
+      const payment = await this.paymentClient.create({ body: paymentDataParams });
       const status = this.getMedusaStatus(payment.status);
 
       return {
         data: {
-          ...paymentSessionData,
+          ...paymentDataSession,
           mp_payment_id: payment.id,
           status: payment.status,
           mp_status_detail: payment.status_detail
@@ -104,109 +82,111 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
     }
   }
 
-  async cancelPayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse["data"]> {
+  async cancelPayment(input: any): Promise<any> {
     try {
-      const mpPaymentId = paymentSessionData.mp_payment_id as string;
+      const paymentDataSession = input.data || input;
+      const mpPaymentId = paymentDataSession.mp_payment_id;
       if (mpPaymentId) {
         await this.paymentClient.cancel({ id: mpPaymentId });
       }
       return {
-        ...paymentSessionData,
-        status: "cancelled"
+        ...paymentDataSession,
+        status: "canceled"
       }
     } catch (e) {
       return this.buildError("An error occurred in cancelPayment", e)
     }
   }
 
-  async capturePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse["data"]> {
+  async capturePayment(input: any): Promise<any> {
     try {
-      // With MercadoPago, capture is typically done automatically upon authorization for most payment methods
-      // If manual capture is enabled, you use the Capture API.
-      const mpPaymentId = paymentSessionData.mp_payment_id as string;
+      const paymentDataSession = input.data || input;
+      const mpPaymentId = paymentDataSession.mp_payment_id;
       if (mpPaymentId) {
          const payment = await this.paymentClient.capture({ id: mpPaymentId });
          return {
-           ...paymentSessionData,
+           ...paymentDataSession,
            status: payment.status
          }
       }
-      return { ...paymentSessionData, status: "captured" }
+      return { ...paymentDataSession, status: "captured" }
     } catch (e) {
       return this.buildError("An error occurred in capturePayment", e)
     }
   }
 
-  async deletePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse["data"]> {
-    return this.cancelPayment(paymentSessionData)
+  async deletePayment(input: any): Promise<any> {
+    return this.cancelPayment(input)
   }
 
-  async refundPayment(
-    paymentSessionData: Record<string, unknown>,
-    refundAmount: number
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse["data"]> {
+  async refundPayment(input: any): Promise<any> {
     try {
-      const mpPaymentId = paymentSessionData.mp_payment_id as string | number;
+      const paymentDataSession = input.data || input;
+      const mpPaymentId = paymentDataSession.mp_payment_id;
       if (!mpPaymentId) {
-         return this.buildError("No MercadoPago Payment ID found correctly.", new Error("Missing ID"));
+         return this.buildError("No MercadoPago Payment ID found correctly.", Error("Missing ID"));
       }
-
-      // We'd typically use the Refunds API or cancel it entirely
-       return {
-         ...paymentSessionData,
-         status: "refunded"
-       }
+      // Note: we can use Refund API from MercadoPago here if needed
+      return {
+        ...paymentDataSession,
+        status: "refunded"
+      }
     } catch (e) {
       return this.buildError("An error occurred in refundPayment", e)
     }
   }
 
-  async getPaymentStatus(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentSessionStatus> {
-    const mpPaymentId = paymentSessionData.mp_payment_id as string | number;
-    if (!mpPaymentId) return "pending" as PaymentSessionStatus;
+  async getPaymentStatus(input: any): Promise<any> {
+    const paymentDataSession = input.data || input;
+    const mpPaymentId = paymentDataSession.mp_payment_id;
+    if (!mpPaymentId) return { status: 'pending' };
 
     try {
       const payment = await this.paymentClient.get({ id: mpPaymentId });
-      return this.getMedusaStatus(payment.status);
+      return { status: this.getMedusaStatus(payment.status) };
     } catch (e) {
-      return "error" as PaymentSessionStatus;
+      return { status: "error" };
     }
   }
 
-  async updatePayment(
-    input: UpdatePaymentProviderSession
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async retrievePayment(input: any): Promise<any> {
+    try {
+      const paymentDataSession = input.data || input;
+      const mpPaymentId = paymentDataSession.mp_payment_id;
+      if (!mpPaymentId) return paymentDataSession;
+
+      const payment = await this.paymentClient.get({ id: mpPaymentId });
+      return {
+          ...paymentDataSession,
+          ...payment
+      }
+    } catch (e) {
+        return this.buildError("An error occurred in retrievePayment", e)
+    }
+  }
+
+  async updatePayment(input: any): Promise<any> {
     try {
       return {
         ...input.data,
         ...input.context,
-        id: input.data.id,
-      } as PaymentProviderSessionResponse
+        id: input.data?.id,
+      }
     } catch (e) {
       return this.buildError("An error occurred in updatePayment", e)
     }
   }
 
-  async getWebhookActionAndData(
-    payload: ProviderWebhookPayload
-  ): Promise<WebhookActionResult> {
+  async getWebhookActionAndData(payload: any): Promise<any> {
     try {
-      const { data, rawData, headers } = payload;
+      const { data } = payload;
       
       const body = data as any;
       if (body.type === "payment" && body.data?.id) {
          const payment = await this.paymentClient.get({ id: body.data.id });
          
          const status = this.getMedusaStatus(payment.status);
-         let action: WebhookActionResult["action"] = "not_supported";
+         let action = "not_supported";
          
          if (status === "captured") {
             action = "captured";
@@ -221,7 +201,6 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
            data: {
              session_id: payment.external_reference || payment.id,
              amount: payment.transaction_amount,
-             mp_payment_id: payment.id
            }
          }
       }
@@ -229,7 +208,7 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
       return {
         action: "not_supported"
       }
-    } catch (e) {
+    } catch (e: any) {
       return {
         action: "failed",
         data: {
@@ -239,33 +218,30 @@ export default class MercadoPagoProviderService extends AbstractPaymentProvider<
     }
   }
 
-  private getMedusaStatus(mpStatus: string | undefined): PaymentSessionStatus {
+  private getMedusaStatus(mpStatus: string | undefined): string {
     switch (mpStatus) {
       case "approved":
-        return "captured" as PaymentSessionStatus;
+        return "captured";
       case "in_process":
       case "pending":
       case "authorized":
-        return "authorized" as PaymentSessionStatus;
+        return "authorized";
       case "cancelled":
       case "rejected":
-        return "canceled" as PaymentSessionStatus;
+        return "canceled";
       case "refunded":
       case "charged_back":
-         return "error" as PaymentSessionStatus; // Or mapped to something else based on medusa flow
+         return "error"; 
       default:
-        return "pending" as PaymentSessionStatus;
+        return "pending";
     }
   }
 
-  private buildError(
-    message: string,
-    e: any
-  ): PaymentProviderError {
+  private buildError(message: string, e: any): any {
     return {
       error: message,
-      code: e.code || "unknown",
-      detail: e.message || e.detail,
+      code: e?.code || "unknown",
+      detail: e?.message || e?.detail || "Unknown error occurred",
     }
   }
 }
