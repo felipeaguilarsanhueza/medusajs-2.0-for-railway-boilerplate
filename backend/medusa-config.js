@@ -21,7 +21,9 @@ import {
   MINIO_SECRET_KEY,
   MINIO_BUCKET,
   MEILISEARCH_HOST,
-  MEILISEARCH_ADMIN_KEY
+  MEILISEARCH_ADMIN_KEY,
+  MERCADOPAGO_ACCESS_TOKEN,
+  MERCADOPAGO_WEBHOOK_SECRET
 } from 'lib/constants';
 
 loadEnv(process.env.NODE_ENV, process.cwd());
@@ -117,22 +119,30 @@ const medusaConfig = {
         ]
       }
     }] : []),
-    ...(STRIPE_API_KEY && STRIPE_WEBHOOK_SECRET ? [{
+    ...(STRIPE_API_KEY || MERCADOPAGO_ACCESS_TOKEN ? [{
       key: Modules.PAYMENT,
       resolve: '@medusajs/payment',
       options: {
         providers: [
-          {
+          ...(STRIPE_API_KEY ? [{
             resolve: '@medusajs/payment-stripe',
             id: 'stripe',
             options: {
               apiKey: STRIPE_API_KEY,
               webhookSecret: STRIPE_WEBHOOK_SECRET,
             },
-          },
+          }] : []),
+          ...(MERCADOPAGO_ACCESS_TOKEN ? [{
+            resolve: './src/modules/payment-mercadopago',
+            id: 'mercadopago',
+            options: {
+              access_token: MERCADOPAGO_ACCESS_TOKEN,
+              webhook_secret: MERCADOPAGO_WEBHOOK_SECRET,
+            },
+          }] : [])
         ],
       },
-    }] : [])
+    }] : []),
   ],
   plugins: [
   ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY ? [{
