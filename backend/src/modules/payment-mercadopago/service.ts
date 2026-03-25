@@ -7,7 +7,7 @@ type Options = {
   webhook_secret?: string;
 }
 
-export default class MercadoPagoProviderService extends AbstractPaymentProvider<Options> {
+export default class MercadopagoProviderService extends AbstractPaymentProvider<Options> {
   static identifier = "mercadopago"
   protected config_: Options;
   protected mpConfig: MercadoPagoConfig;

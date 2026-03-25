@@ -14,18 +14,10 @@ export async function POST(
 
     let mpService;
     try {
-      mpService = req.scope.resolve("payment_mercadopago");
+      mpService = req.scope.resolve("mercadopagoProviderService");
     } catch(e) {
-      try {
-        mpService = req.scope.resolve("pp_mercadopago");
-      } catch(e2) {
-        try {
-           mpService = req.scope.resolve("mercadopago");
-        } catch(e3) {
-           res.status(500).json({ success: false, error: "MP Provider not found in DI container" });
-           return;
-        }
-      }
+      res.status(500).json({ success: false, error: "MP Provider not found in DI container" });
+      return;
     }
 
     const input = {
