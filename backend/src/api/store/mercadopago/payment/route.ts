@@ -1,4 +1,4 @@
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 
 export async function POST(
   req: MedusaRequest,
@@ -38,13 +38,6 @@ export async function POST(
 
     res.status(200).json({ success: true, result });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error?.message || "Internal error" });
   }
-}
-
-export async function OPTIONS(
-  req: MedusaRequest,
-  res: MedusaResponse
-): Promise<void> {
-  res.sendStatus(200);
 }
