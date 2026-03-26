@@ -63,6 +63,7 @@ export class BrevoNotificationService extends AbstractNotificationProviderServic
 
     const payload: any = {
       sender: {
+        name: 'Calisf',
         email: notification.from?.trim() ?? this.config_.from
       },
       to: [

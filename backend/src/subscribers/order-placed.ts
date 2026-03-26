@@ -20,12 +20,12 @@ export default async function orderPlacedHandler({
       template: EmailTemplates.ORDER_PLACED,
       data: {
         emailOptions: {
-          replyTo: 'info@example.com',
-          subject: 'Your order has been placed'
+          replyTo: 'contacto@calisf.cl',
+          subject: `Calisf — Confirmación de Pedido #${order.display_id}`
         },
         order,
         shippingAddress,
-        preview: 'Thank you for your order!'
+        preview: '¡Gracias por tu compra en Calisf!'
       }
     })
   } catch (error) {
