@@ -31,14 +31,15 @@ export const Base: React.FC<BaseProps> = ({ preview, children }) => {
         }}>
           {/* Header with logo */}
           <Section style={{
-            backgroundColor: BRAND_COLOR,
+            backgroundColor: '#ffffff',
             padding: '30px 40px',
             borderRadius: '12px 12px 0 0',
             textAlign: 'center',
+            borderBottom: '2px solid #f4f4f7'
           }}>
             <Img
               src={LOGO_URL}
-              alt="Calisf - Formación y Asesoría en Inocuidad Alimentaria"
+              alt="Calisf"
               width="200"
               style={{
                 margin: '0 auto',

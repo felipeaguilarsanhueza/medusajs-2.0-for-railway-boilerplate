@@ -50,10 +50,8 @@ export const OrderPlacedTemplate: React.FC<OrderPlacedTemplateProps> & {
             height: '64px',
             borderRadius: '50%',
             backgroundColor: '#e8f5e9',
-            margin: '0 auto 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            margin: '0 auto 16px auto',
+            display: 'inline-block',
             lineHeight: '64px',
             textAlign: 'center',
           }}>
@@ -61,6 +59,8 @@ export const OrderPlacedTemplate: React.FC<OrderPlacedTemplateProps> & {
               fontSize: '32px',
               margin: '0',
               lineHeight: '64px',
+              display: 'inline-block',
+              color: '#4CAF50',
             }}>✓</Text>
           </div>
           <Text style={{
