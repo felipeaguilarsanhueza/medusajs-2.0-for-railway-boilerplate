@@ -1,36 +1,69 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+// @ts-ignore
+import { MercadoPagoConfig, Payment } from 'mercadopago';
 
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
   try {
-    const { paymentSessionId, paymentData } = req.body as any;
+    const { paymentData } = req.body as any;
 
-    if (!paymentSessionId || !paymentData) {
-      res.status(400).json({ success: false, error: "Missing required fields" });
+    if (!paymentData) {
+      res.status(400).json({ success: false, error: "Missing paymentData" });
       return;
     }
 
-    let mpService;
-    try {
-      // Medusa v2 registers payment providers as pp_{identifier}_{configId}
-      mpService = req.scope.resolve("pp_mercadopago_mercadopago");
-    } catch(e) {
-      res.status(500).json({ success: false, error: "MP Provider not found in DI container" });
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      res.status(500).json({ success: false, error: "MERCADOPAGO_ACCESS_TOKEN not configured" });
       return;
     }
 
-    const input = {
-      amount: paymentData?.transactionAmount || paymentData?.transaction_amount || 0,
-      data: paymentData,
-      context: {}
-    };
+    // Initialize MercadoPago SDK directly (no DI container needed)
+    const mpConfig = new MercadoPagoConfig({
+      accessToken,
+      options: { timeout: 5000 }
+    });
+    const paymentClient = new Payment(mpConfig);
 
-    const result = await mpService.authorizePayment(input);
+    // Create payment with MercadoPago
+    const mpResult = await paymentClient.create({
+      body: {
+        transaction_amount: Number(paymentData.transaction_amount || paymentData.transactionAmount),
+        description: paymentData.description || "Compra en Cali SF",
+        payment_method_id: paymentData.payment_method_id || paymentData.paymentMethodId,
+        token: paymentData.token,
+        installments: Number(paymentData.installments || 1),
+        payer: {
+          email: paymentData.payer?.email,
+          identification: paymentData.payer?.identification,
+        },
+      }
+    });
 
-    res.status(200).json({ success: true, result });
+    console.log("MercadoPago result:", mpResult.id, mpResult.status, mpResult.status_detail);
+
+    if (mpResult.status === 'approved' || mpResult.status === 'in_process' || mpResult.status === 'pending') {
+      res.status(200).json({
+        success: true,
+        mp_payment_id: mpResult.id,
+        status: mpResult.status,
+        status_detail: mpResult.status_detail,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: `Pago ${mpResult.status}: ${mpResult.status_detail}`,
+        mp_payment_id: mpResult.id,
+        status: mpResult.status,
+      });
+    }
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error?.message || "Internal error" });
+    console.error("MercadoPago payment error:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Error interno al procesar el pago",
+    });
   }
 }

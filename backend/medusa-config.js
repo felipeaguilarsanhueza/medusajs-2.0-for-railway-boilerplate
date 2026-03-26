@@ -22,8 +22,6 @@ import {
   MINIO_BUCKET,
   MEILISEARCH_HOST,
   MEILISEARCH_ADMIN_KEY,
-  MERCADOPAGO_ACCESS_TOKEN,
-  MERCADOPAGO_WEBHOOK_SECRET,
   BREVO_API_KEY,
   BREVO_FROM_EMAIL
 } from 'lib/constants';
@@ -130,30 +128,24 @@ const medusaConfig = {
         ]
       }
     }] : []),
-    ...(STRIPE_API_KEY || MERCADOPAGO_ACCESS_TOKEN ? [{
+    ...(STRIPE_API_KEY ? [{
       key: Modules.PAYMENT,
       resolve: '@medusajs/payment',
       options: {
         providers: [
-          ...(STRIPE_API_KEY ? [{
+          {
             resolve: '@medusajs/payment-stripe',
             id: 'stripe',
             options: {
               apiKey: STRIPE_API_KEY,
               webhookSecret: STRIPE_WEBHOOK_SECRET,
             },
-          }] : []),
-          ...(MERCADOPAGO_ACCESS_TOKEN ? [{
-            resolve: './src/modules/payment-mercadopago',
-            id: 'mercadopago',
-            options: {
-              access_token: MERCADOPAGO_ACCESS_TOKEN,
-              webhook_secret: MERCADOPAGO_WEBHOOK_SECRET,
-            },
-          }] : [])
+          }
         ],
       },
     }] : []),
+    // MercadoPago is handled via custom route at /store/mercadopago/payment
+    // using the SDK directly, not as a Medusa payment provider
   ],
   plugins: [
   ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY ? [{
