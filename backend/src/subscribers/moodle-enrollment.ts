@@ -1,6 +1,7 @@
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
-import { IOrderModuleService, Logger } from '@medusajs/framework/types'
+import { INotificationModuleService, IOrderModuleService, Logger } from '@medusajs/framework/types'
 import { Modules } from '@medusajs/framework/utils'
+import { EmailTemplates } from '../modules/email-notifications/templates'
 
 export default async function moodleEnrollmentHandler({
   event: { data },
@@ -8,6 +9,7 @@ export default async function moodleEnrollmentHandler({
 }: SubscriberArgs<any>) {
   const logger = container.resolve<Logger>('logger')
   const orderModuleService: IOrderModuleService = container.resolve(Modules.ORDER)
+  const notificationModuleService: INotificationModuleService = container.resolve(Modules.NOTIFICATION)
   
   const MOODLE_URL = process.env.MOODLE_URL
   const MOODLE_TOKEN = process.env.MOODLE_TOKEN
@@ -68,18 +70,27 @@ export default async function moodleEnrollmentHandler({
     }
     
     let moodleUserId: number
+    let isNewUser = false
+    let generatedPassword = ''
 
     // Existing array, not empty and ID > 0
     if (existingUsers && Array.isArray(existingUsers) && existingUsers.length > 0 && existingUsers[0].id) {
       moodleUserId = existingUsers[0].id
       logger.info(`✓ Usuario de Moodle encontrado exitosamente con ID interno: ${moodleUserId}`)
     } else {
-      // 3. Crear el usuario en Moodle si no existe (con Autogeneración de clave)
+      isNewUser = true
+      // Generamos una clave temporal para no depender de que el Cron de Moodle envíe el correo
+      // Patrón exigente (Mayúscula, minúscula, número, caracter especial)
+      generatedPassword = 'Calisf' + Math.floor(1000 + Math.random() * 9000) + 'X!'
+      
       logger.info(`+ Creando nuevo usuario de Moodle para: ${userEmail}`)
       const createParams = new URLSearchParams()
       createParams.append('users[0][username]', userEmail.toLowerCase())
-      // IMPORTANTE: Al ser = '1', Moodle mandará solito el correo de: Bienvenido, dale clic aquí para establecer tu clave
-      createParams.append('users[0][createpassword]', '1') 
+      // Asignamos la clave inventada en vez de usar createpassword = 1
+      createParams.append('users[0][password]', generatedPassword)
+      // Forzamos al usuario a cambiarla apenas inicie sesión
+      createParams.append('users[0][preferences][0][type]', 'auth_forcepasswordchange')
+      createParams.append('users[0][preferences][0][value]', '1')
       createParams.append('users[0][email]', userEmail)
       createParams.append('users[0][firstname]', userFirstName)
       createParams.append('users[0][lastname]', userLastName)
@@ -92,6 +103,28 @@ export default async function moodleEnrollmentHandler({
 
       moodleUserId = newUsers[0].id
       logger.info(`✓ Usuario de Moodle creado con nuevo ID: ${moodleUserId}`)
+    }
+    
+    // --> Enviar el correo desde MEDUSA (con Brevo)
+    try {
+      await notificationModuleService.createNotifications({
+        to: userEmail,
+        channel: 'email',
+        template: EmailTemplates.MOODLE_WELCOME,
+        data: {
+          emailOptions: {
+            replyTo: 'contacto@calisf.cl',
+            subject: 'Calisf — Datos de acceso a tus Cursos en Aula Virtual'
+          },
+          userEmail,
+          userFirstName,
+          tempPassword: isNewUser ? generatedPassword : null,
+          preview: 'Ya tienes acceso al Aula Virtual de Calisf'
+        }
+      })
+      logger.info(`✉️ Correo de Moodle Welcome enviado a ${userEmail} exitosamente desde Medusa.`)
+    } catch (e) {
+      logger.error(`❌ Falló envío del correo de Moodle Welcome desde Medusa: ${e}`)
     }
 
     // 4. Enrollar usuario por cada producto del carrito usando su SKU (idnumber en moodle)
