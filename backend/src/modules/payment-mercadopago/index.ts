@@ -1,7 +1,10 @@
-import MercadopagoProviderService from "./service"
+import { ModuleProviderExports } from '@medusajs/framework/types'
+import MercadopagoProviderService from './service'
 
 const services = [MercadopagoProviderService]
 
-export default {
+const providerExport: ModuleProviderExports = {
   services,
 }
+
+export default providerExport

@@ -14,7 +14,8 @@ export async function POST(
 
     let mpService;
     try {
-      mpService = req.scope.resolve("mercadopagoProviderService");
+      // Medusa v2 registers payment providers as pp_{identifier}_{configId}
+      mpService = req.scope.resolve("pp_mercadopago_mercadopago");
     } catch(e) {
       res.status(500).json({ success: false, error: "MP Provider not found in DI container" });
       return;
