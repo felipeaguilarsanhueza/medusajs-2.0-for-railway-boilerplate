@@ -19,6 +19,66 @@ export function normalizeAmount(amount: unknown): number {
   return 0
 }
 
+function firstPositiveAmount(values: unknown[]): number {
+  for (const value of values) {
+    const amount = normalizeAmount(value)
+    if (amount > 0) {
+      return amount
+    }
+  }
+
+  return 0
+}
+
+export function getLineItemUnitAmount(item: any): number {
+  const quantity = Math.max(Number(item?.quantity || 1), 1)
+  const totalAmount = firstPositiveAmount([
+    item?.total,
+    item?.raw_total,
+    item?.subtotal,
+    item?.raw_subtotal,
+  ])
+
+  return firstPositiveAmount([
+    item?.unit_price,
+    item?.raw_unit_price,
+    totalAmount ? Math.round(totalAmount / quantity) : 0,
+  ])
+}
+
+export function getCartAmount(cart: any): number {
+  const directAmount = firstPositiveAmount([
+    cart?.total,
+    cart?.raw_total,
+    cart?.subtotal,
+    cart?.raw_subtotal,
+    cart?.item_total,
+    cart?.raw_item_total,
+  ])
+
+  if (directAmount > 0) {
+    return directAmount
+  }
+
+  const items = Array.isArray(cart?.items) ? cart.items : []
+
+  return items.reduce((sum: number, item: any) => {
+    const quantity = Math.max(Number(item?.quantity || 1), 1)
+    const lineAmount = firstPositiveAmount([
+      item?.total,
+      item?.raw_total,
+      item?.subtotal,
+      item?.raw_subtotal,
+    ])
+
+    if (lineAmount > 0) {
+      return sum + lineAmount
+    }
+
+    return sum + getLineItemUnitAmount(item) * quantity
+  }, 0)
+}
+
 export function normalizeRut(rut?: string): string | undefined {
   const cleaned = rut?.replace(/[^0-9kK]/g, "").toUpperCase()
   return cleaned || undefined

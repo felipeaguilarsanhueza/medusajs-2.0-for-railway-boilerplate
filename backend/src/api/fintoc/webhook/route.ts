@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 import {
+  getCartAmount,
   getRawBody,
   normalizeAmount,
   verifyFintocSignature,
@@ -55,20 +56,53 @@ function isSuccessfulPaymentEvent(event: any) {
 
 async function retrieveCart(scope: MedusaRequest["scope"], cartId: string) {
   const cartModuleService = scope.resolve(Modules.CART) as any
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
-  try {
-    return await cartModuleService.retrieveCart(cartId)
-  } catch (error) {
-    const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const retrieveCartFromQuery = async () => {
     const { data } = await query.graph({
       entity: "cart",
-      fields: ["id", "total", "raw_total"],
+      fields: [
+        "id",
+        "total",
+        "raw_total",
+        "subtotal",
+        "raw_subtotal",
+        "item_total",
+        "raw_item_total",
+        "items.id",
+        "items.quantity",
+        "items.total",
+        "items.raw_total",
+        "items.subtotal",
+        "items.raw_subtotal",
+        "items.unit_price",
+        "items.raw_unit_price",
+      ],
       filters: {
         id: cartId,
       },
     })
 
     return data?.[0]
+  }
+
+  try {
+    const cart = await cartModuleService.retrieveCart(cartId, {
+      relations: ["items"],
+    })
+    const queriedCart = await retrieveCartFromQuery().catch(() => null)
+
+    if (!queriedCart) {
+      return cart
+    }
+
+    return {
+      ...cart,
+      ...queriedCart,
+      items: queriedCart.items?.length ? queriedCart.items : cart.items,
+    }
+  } catch (error) {
+    return retrieveCartFromQuery()
   }
 }
 
@@ -133,7 +167,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       return
     }
 
-    const cartTotal = normalizeAmount(cart.total ?? cart.raw_total)
+    const cartTotal = getCartAmount(cart)
     const eventAmount = getEventAmount(event)
 
     if (cartTotal && eventAmount && cartTotal !== eventAmount) {

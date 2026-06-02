@@ -1,6 +1,11 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { FINTOC_API_URL, normalizeAmount, normalizeRut } from "lib/fintoc"
+import {
+  FINTOC_API_URL,
+  getCartAmount,
+  getLineItemUnitAmount,
+  normalizeRut,
+} from "lib/fintoc"
 
 type CreateFintocSessionBody = {
   cart_id?: string
@@ -17,13 +22,9 @@ type CreateFintocSessionBody = {
 
 async function retrieveCart(scope: MedusaRequest["scope"], cartId: string) {
   const cartModuleService = scope.resolve(Modules.CART) as any
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
-  try {
-    return await cartModuleService.retrieveCart(cartId, {
-      relations: ["items"],
-    })
-  } catch (error) {
-    const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const retrieveCartFromQuery = async () => {
     const { data } = await query.graph({
       entity: "cart",
       fields: [
@@ -31,10 +32,18 @@ async function retrieveCart(scope: MedusaRequest["scope"], cartId: string) {
         "email",
         "total",
         "raw_total",
+        "subtotal",
+        "raw_subtotal",
+        "item_total",
+        "raw_item_total",
         "currency_code",
         "items.id",
         "items.title",
         "items.quantity",
+        "items.total",
+        "items.raw_total",
+        "items.subtotal",
+        "items.raw_subtotal",
         "items.unit_price",
         "items.raw_unit_price",
         "items.thumbnail",
@@ -45,6 +54,25 @@ async function retrieveCart(scope: MedusaRequest["scope"], cartId: string) {
     })
 
     return data?.[0]
+  }
+
+  try {
+    const cart = await cartModuleService.retrieveCart(cartId, {
+      relations: ["items"],
+    })
+    const queriedCart = await retrieveCartFromQuery().catch(() => null)
+
+    if (!queriedCart) {
+      return cart
+    }
+
+    return {
+      ...cart,
+      ...queriedCart,
+      items: queriedCart.items?.length ? queriedCart.items : cart.items,
+    }
+  } catch (error) {
+    return retrieveCartFromQuery()
   }
 }
 
@@ -97,7 +125,7 @@ export async function POST(
       return
     }
 
-    const amount = normalizeAmount(cart.total ?? cart.raw_total)
+    const amount = getCartAmount(cart)
     if (!amount || amount <= 0) {
       res.status(400).json({
         success: false,
@@ -121,6 +149,30 @@ export async function POST(
     const customerEmail = customer?.email || cart.email
     const rut = normalizeRut(customer?.rut)
     const items = Array.isArray(cart.items) ? cart.items : []
+    const lineItems = items
+      .map((item: any) => {
+        const unitAmount = getLineItemUnitAmount(item)
+        if (unitAmount <= 0) {
+          return null
+        }
+
+        const imageUrl =
+          typeof item.thumbnail === "string" && item.thumbnail.startsWith("https://")
+            ? item.thumbnail
+            : undefined
+
+        return {
+          quantity: item.quantity || 1,
+          price_data: {
+            unit_amount: unitAmount,
+            product_data: {
+              name: item.title || "Curso Calisf",
+              ...(imageUrl ? { image_url: imageUrl } : {}),
+            },
+          },
+        }
+      })
+      .filter(Boolean)
 
     const payload = {
       amount,
@@ -143,23 +195,7 @@ export async function POST(
           cart_id: cartId,
         },
       },
-      line_items: items.map((item: any) => {
-        const imageUrl =
-          typeof item.thumbnail === "string" && item.thumbnail.startsWith("https://")
-            ? item.thumbnail
-            : undefined
-
-        return {
-          quantity: item.quantity || 1,
-          price_data: {
-            unit_amount: normalizeAmount(item.unit_price ?? item.raw_unit_price),
-            product_data: {
-              name: item.title || "Curso Calisf",
-              ...(imageUrl ? { image_url: imageUrl } : {}),
-            },
-          },
-        }
-      }),
+      ...(lineItems.length ? { line_items: lineItems } : {}),
       metadata: {
         cart_id: cartId,
         provider: "fintoc",
