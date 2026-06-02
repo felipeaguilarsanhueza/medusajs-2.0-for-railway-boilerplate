@@ -79,6 +79,51 @@ export function getCartAmount(cart: any): number {
   }, 0)
 }
 
+export function formatErrorMessage(value: unknown, fallback = "Unknown error"): string {
+  if (!value) {
+    return fallback
+  }
+
+  if (typeof value === "string") {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    const messages = value
+      .map((item) => formatErrorMessage(item, ""))
+      .filter(Boolean)
+
+    return messages.length ? messages.join("; ") : fallback
+  }
+
+  if (typeof value === "object") {
+    const objectValue = value as Record<string, unknown>
+
+    for (const key of ["message", "detail", "description", "title"]) {
+      if (typeof objectValue[key] === "string") {
+        return objectValue[key] as string
+      }
+    }
+
+    for (const key of ["error", "errors", "details"]) {
+      if (objectValue[key]) {
+        const nestedMessage = formatErrorMessage(objectValue[key], "")
+        if (nestedMessage) {
+          return nestedMessage
+        }
+      }
+    }
+
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return fallback
+    }
+  }
+
+  return String(value)
+}
+
 export function normalizeRut(rut?: string): string | undefined {
   const cleaned = rut?.replace(/[^0-9kK]/g, "").toUpperCase()
   return cleaned || undefined

@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   FINTOC_API_URL,
+  formatErrorMessage,
   getCartAmount,
   getLineItemUnitAmount,
   normalizeRut,
@@ -173,8 +174,12 @@ export async function POST(
         }
       })
       .filter(Boolean)
+    const lineItemsTotal = lineItems.reduce((sum: number, item: any) => {
+      return sum + Number(item.quantity || 1) * Number(item.price_data.unit_amount || 0)
+    }, 0)
+    const matchingLineItems = lineItemsTotal === amount ? lineItems : []
 
-    const payload = {
+    const payload: Record<string, any> = {
       amount,
       currency: (cart.currency_code || "CLP").toUpperCase(),
       success_url: safeSuccessUrl,
@@ -195,7 +200,7 @@ export async function POST(
           cart_id: cartId,
         },
       },
-      ...(lineItems.length ? { line_items: lineItems } : {}),
+      ...(matchingLineItems.length ? { line_items: matchingLineItems } : {}),
       metadata: {
         cart_id: cartId,
         provider: "fintoc",
@@ -213,15 +218,24 @@ export async function POST(
       body: JSON.stringify(payload),
     })
 
-    const session = await fintocResponse.json().catch(() => null)
+    const responseText = await fintocResponse.text()
+    let session: any = null
+
+    try {
+      session = responseText ? JSON.parse(responseText) : null
+    } catch {
+      session = responseText
+    }
 
     if (!fintocResponse.ok || !session?.redirect_url) {
+      const error = formatErrorMessage(
+        session,
+        "Fintoc could not create a checkout session"
+      )
+
       res.status(fintocResponse.status || 502).json({
         success: false,
-        error:
-          session?.message ||
-          session?.error ||
-          "Fintoc could not create a checkout session",
+        error,
         details: session,
       })
       return
