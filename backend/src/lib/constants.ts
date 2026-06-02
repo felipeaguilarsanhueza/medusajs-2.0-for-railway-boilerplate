@@ -97,6 +97,14 @@ export const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
 export const MERCADOPAGO_WEBHOOK_SECRET = process.env.MERCADOPAGO_WEBHOOK_SECRET;
 
 /**
+ * (optional) Fintoc configuration
+ */
+export const FINTOC_SECRET_KEY = process.env.FINTOC_SECRET_KEY;
+export const FINTOC_WEBHOOK_SECRET = process.env.FINTOC_WEBHOOK_SECRET;
+export const FINTOC_API_URL = process.env.FINTOC_API_URL;
+export const FINTOC_WEBHOOK_TOLERANCE_SECONDS = process.env.FINTOC_WEBHOOK_TOLERANCE_SECONDS;
+
+/**
  * (optional) Meilisearch configuration
  */
 export const MEILISEARCH_HOST = process.env.MEILISEARCH_HOST;
